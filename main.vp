@@ -1,3 +1,10 @@
+& namespace name "Blah.blah" % import
+
+$ number: int = 5; %variable
+
 % comment
 
 print("Viper file successfully ran");
+print("THis is the first ever viper file ever made. and this is only the beginning");
+print("This line contains a print statement and a comment"); % comment
+print(number);
