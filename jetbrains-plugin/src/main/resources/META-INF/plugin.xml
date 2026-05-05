@@ -34,5 +34,28 @@
         <enterHandlerDelegate implementation="dev.viper.idea.ViperEnterHandlerDelegate"/>
         <postStartupActivity implementation="dev.viper.idea.ViperStartupActivity"/>
         <notificationGroup id="Viper Notifications" displayType="BALLOON" isLogByDefault="true"/>
+        <configurationType implementation="dev.viper.idea.ViperRunConfigurationType"/>
+        <runConfigurationProducer implementation="dev.viper.idea.ViperRunConfigurationProducer"/>
     </extensions>
+
+    <actions>
+        <action id="Viper.RunFile"
+                class="dev.viper.idea.ViperRunFileAction"
+                text="Run Viper File"
+                description="Run the selected Viper file">
+            <add-to-group group-id="ToolsMenu" anchor="last"/>
+            <add-to-group group-id="EditorPopupMenu" anchor="last"/>
+            <add-to-group group-id="ProjectViewPopupMenu" anchor="last"/>
+            <add-to-group group-id="MainToolbarRight" anchor="last"/>
+        </action>
+        <action id="Viper.CompileFile"
+                class="dev.viper.idea.ViperCompileFileAction"
+                text="Compile Viper File"
+                description="Compile the selected Viper file">
+            <add-to-group group-id="ToolsMenu" anchor="last"/>
+            <add-to-group group-id="EditorPopupMenu" anchor="last"/>
+            <add-to-group group-id="ProjectViewPopupMenu" anchor="last"/>
+            <add-to-group group-id="MainToolbarRight" anchor="last"/>
+        </action>
+    </actions>
 </idea-plugin>

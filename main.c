@@ -52,5 +52,11 @@ int main(int argc, char **argv) {
     else {
         vp_print_str("else branch");
     }
+    if ((ready && (number == 10))) {
+        vp_print_str("Testing the new jetbrains plugin");
+    }
+    else {
+        vp_print_str("Failed to meet conditions");
+    }
     return 0;
 }

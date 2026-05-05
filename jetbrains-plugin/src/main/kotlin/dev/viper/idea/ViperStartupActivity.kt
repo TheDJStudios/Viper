@@ -146,11 +146,12 @@ private class ViperRuntimeManager(
             "Python is available (${python.displayName}), but the 'lark' package is missing.",
             NotificationAction.createSimple("Install lark") {
                 ApplicationManager.getApplication().executeOnPooledThread {
-                    val success = ViperPythonSupport.installLark(python)
-                    if (success) {
+                    val result = ViperPythonSupport.installLark(python)
+                    if (result.exitCode == 0 && ViperPythonSupport.hasLark(python)) {
                         notifier.info("Installed 'lark' for ${python.displayName}.")
                     } else {
-                        notifier.warn("Failed to install 'lark'. Run `${python.installCommand()}` in a terminal.")
+                        val details = result.output.ifBlank { "No installer output was captured." }
+                        notifier.warn("Failed to install 'lark' for ${python.displayName}. $details Run `${python.installCommand()}` in a terminal.")
                     }
                 }
             },
@@ -323,55 +324,112 @@ private data class ViperReleaseAsset(
     val downloadUrl: String,
 )
 
-private data class PythonCommand(
+data class PythonCommand(
     val command: List<String>,
 ) {
     val displayName: String
         get() = command.joinToString(" ")
 
-    fun installCommand(): String = "${displayName} -m pip install lark"
+    fun installCommand(): String = "${displayName} -m pip install --user lark"
 }
 
-private object ViperPythonSupport {
+object ViperPythonSupport {
     fun detect(): PythonCommand? {
-        val candidates = listOf(
-            PythonCommand(listOf("python3")),
-            PythonCommand(listOf("python")),
-            PythonCommand(listOf("py", "-3")),
-        )
+        val candidates = candidateCommands()
+            .distinctBy { it.command }
+            .filter(::isAvailable)
 
-        return candidates.firstOrNull(::isAvailable)
+        return candidates.firstOrNull(::hasLark) ?: candidates.firstOrNull()
     }
 
     fun hasLark(command: PythonCommand): Boolean =
         run(command.command + listOf("-c", "import lark")).exitCode == 0
 
-    fun installLark(command: PythonCommand): Boolean =
-        run(command.command + listOf("-m", "pip", "install", "lark")).exitCode == 0
+    fun installLark(command: PythonCommand): ProcessResult {
+        val attempts = listOf(
+            command.command + listOf("-m", "pip", "install", "lark"),
+            command.command + listOf("-m", "pip", "install", "--user", "lark"),
+            command.command + listOf("-m", "pip", "install", "--user", "--break-system-packages", "lark"),
+        )
+
+        var lastResult = ProcessResult(-1, "No install attempt was executed.")
+
+        for (attempt in attempts) {
+            val result = run(attempt, timeoutSeconds = 90)
+            if (result.exitCode == 0) {
+                return result
+            }
+            lastResult = result
+        }
+
+        return lastResult
+    }
+
+    fun describeMissingLark(command: PythonCommand): String {
+        val result = run(command.command + listOf("-c", "import lark"))
+        return result.output.ifBlank { "Import failed without output." }
+    }
 
     private fun isAvailable(command: PythonCommand): Boolean =
         run(command.command + "--version").exitCode == 0
 
-    private fun run(command: List<String>): ProcessResult {
+    private fun candidateCommands(): List<PythonCommand> {
+        val namedCandidates = listOf(
+            PythonCommand(listOf("python3")),
+            PythonCommand(listOf("python")),
+            PythonCommand(listOf("py", "-3")),
+        )
+
+        val pathCandidates = listOf(
+            "/opt/homebrew/bin/python3",
+            "/opt/homebrew/bin/python",
+            "/usr/local/bin/python3",
+            "/usr/local/bin/python",
+            "/usr/bin/python3",
+            "/Library/Frameworks/Python.framework/Versions/Current/bin/python3",
+        )
+            .map(Path::of)
+            .filter { Files.isExecutable(it) }
+            .map { PythonCommand(listOf(it.toString())) }
+
+        val shellCandidates = shellResolve("python3") + shellResolve("python")
+
+        return namedCandidates + pathCandidates + shellCandidates
+    }
+
+    private fun shellResolve(binary: String): List<PythonCommand> {
+        val shells = listOf("/bin/zsh", "/bin/bash", "/bin/sh")
+        return shells.mapNotNull { shell ->
+            val result = run(listOf(shell, "-lc", "command -v $binary"))
+            val resolved = result.output.lineSequence().firstOrNull()?.trim().orEmpty()
+            if (result.exitCode == 0 && resolved.isNotBlank()) {
+                PythonCommand(listOf(resolved))
+            } else {
+                null
+            }
+        }
+    }
+
+    private fun run(command: List<String>, timeoutSeconds: Long = 20): ProcessResult {
         return try {
             val process = ProcessBuilder(command)
                 .redirectErrorStream(true)
                 .start()
 
-            val completed = process.waitFor(20, TimeUnit.SECONDS)
+            val completed = process.waitFor(timeoutSeconds, TimeUnit.SECONDS)
             if (!completed) {
                 process.destroyForcibly()
-                ProcessResult(-1, "Timed out")
+                ProcessResult(-1, "Timed out running: ${command.joinToString(" ")}")
             } else {
                 ProcessResult(process.exitValue(), process.inputStream.bufferedReader().readText().trim())
             }
-        } catch (_: IOException) {
-            ProcessResult(-1, "")
+        } catch (error: IOException) {
+            ProcessResult(-1, error.message ?: "")
         }
     }
 }
 
-private data class ProcessResult(
+data class ProcessResult(
     val exitCode: Int,
     val output: String,
 )
@@ -448,3 +506,5 @@ private const val PLUGIN_ID = "dev.viper.idea"
 private const val PLUGIN_TAG_PREFIX = "plugin-"
 private const val RELEASES_API_URL = "https://api.github.com/repos/TheDJStudios/Viper/releases"
 private const val NOTIFICATION_GROUP_ID = "Viper Notifications"
+const val VIPER_COMPILER_NAME = "compiler.py"
+const val VIPER_INTERPRETER_NAME = "interpreter.py"
