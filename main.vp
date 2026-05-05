@@ -1,4 +1,4 @@
-& namespace name "Blah.blah" % import
+import namespace name "Blah.blah" % import
 
 $ number: int = 5; %variable
 
