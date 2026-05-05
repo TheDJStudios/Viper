@@ -1,0 +1,11 @@
+void func() {
+    print("funcWerks");
+}
+
+int main() {
+    print("hello from main");
+    print($argc);
+    print($args);
+    func();
+    return 0;
+}
