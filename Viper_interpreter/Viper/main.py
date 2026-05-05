@@ -17,11 +17,23 @@ type: "int"   -> int_type
     | "str"   -> str_type
     | "bool"  -> bool_type
 
-expr: STRING  -> string
-    | NUMBER  -> number
-    | "true"  -> true
-    | "false" -> false
-    | NAME    -> variable
+?expr: expr "+" term   -> add
+     | expr "-" term   -> sub
+     | term
+
+?term: term "*" unary  -> mul
+     | term "/" unary  -> div
+     | unary
+
+?unary: "-" unary      -> neg
+      | atom
+
+?atom: STRING          -> string
+     | NUMBER          -> number
+     | "true"          -> true
+     | "false"         -> false
+     | NAME            -> variable
+     | "(" expr ")"
 
 %import common.CNAME -> NAME
 %import common.ESCAPED_STRING -> STRING
@@ -65,6 +77,41 @@ class ViperInterpreter(Transformer):
             raise RuntimeError(f"VP: Error, Unknown variable '{name}'")
 
         return self.variables[name]["value"]
+
+    def is_number(self, value):
+        return (isinstance(value, int) or isinstance(value, float)) and not isinstance(value, bool)
+
+    def require_numeric_operands(self, operator_name, left, right):
+        if not self.is_number(left) or not self.is_number(right):
+            raise RuntimeError(
+                f"VP: Error, Operator '{operator_name}' requires numeric operands"
+            )
+
+    def add(self, left, right):
+        self.require_numeric_operands("+", left, right)
+        return left + right
+
+    def sub(self, left, right):
+        self.require_numeric_operands("-", left, right)
+        return left - right
+
+    def mul(self, left, right):
+        self.require_numeric_operands("*", left, right)
+        return left * right
+
+    def div(self, left, right):
+        self.require_numeric_operands("/", left, right)
+
+        if right == 0:
+            raise RuntimeError("VP: Error, Division by zero")
+
+        return left / right
+
+    def neg(self, value):
+        if not self.is_number(value):
+            raise RuntimeError("VP: Error, Unary '-' requires a numeric operand")
+
+        return -value
 
     def int_type(self):
         return "int"
