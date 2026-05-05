@@ -1,4 +1,7 @@
 import sys
+import platform
+import shutil
+import subprocess
 from pathlib import Path
 
 from lark import Lark, Token
@@ -149,11 +152,159 @@ class Scope:
 parser = Lark(VIPER_GRAMMAR, parser="lalr")
 
 
+HOST_OS_MAP = {
+    "Darwin": "macos",
+    "Linux": "linux",
+    "Windows": "windows",
+}
+
+HOST_ARCH_MAP = {
+    "x86_64": "x86_64",
+    "AMD64": "x86_64",
+    "arm64": "aarch64",
+    "aarch64": "aarch64",
+}
+
+
 def parse_source(source_code, filename):
     try:
         return parser.parse(source_code)
     except Exception as error:
         raise ViperCompileError(f"{filename}: VP: Parse error\n    {error}") from error
+
+
+def detect_host_os():
+    host_os = HOST_OS_MAP.get(platform.system())
+    if host_os is None:
+        raise ViperCompileError(f"VP: Error, Unsupported host OS '{platform.system()}'")
+    return host_os
+
+
+def detect_host_arch():
+    return HOST_ARCH_MAP.get(platform.machine(), "x86_64")
+
+
+def zig_target(target_os, target_arch):
+    suffix = {
+        "windows": "windows-gnu",
+        "linux": "linux-gnu",
+        "macos": "macos",
+    }[target_os]
+    return f"{target_arch}-{suffix}"
+
+
+def executable_suffix(target_os):
+    return ".exe" if target_os == "windows" else ""
+
+
+def native_binary_path(c_path, target_os):
+    return c_path.with_suffix(executable_suffix(target_os))
+
+
+def compiler_candidates(host_os, target_os):
+    target_arch = detect_host_arch()
+    candidates = []
+
+    if target_os == host_os:
+        if host_os == "macos":
+            candidates.extend([
+                {"name": "cc", "kind": "posix"},
+                {"name": "clang", "kind": "posix"},
+                {"name": "gcc", "kind": "posix"},
+            ])
+        elif host_os == "linux":
+            candidates.extend([
+                {"name": "cc", "kind": "posix"},
+                {"name": "clang", "kind": "posix"},
+                {"name": "gcc", "kind": "posix"},
+            ])
+        elif host_os == "windows":
+            candidates.extend([
+                {"name": "cl", "kind": "msvc"},
+                {"name": "clang-cl", "kind": "msvc"},
+                {"name": "gcc", "kind": "posix"},
+                {"name": "clang", "kind": "posix"},
+            ])
+
+    if target_os == "windows" and host_os != "windows":
+        candidates.append({"name": "x86_64-w64-mingw32-gcc", "kind": "posix"})
+
+    candidates.append({
+        "name": "zig",
+        "kind": "zig",
+        "target": zig_target(target_os, target_arch),
+    })
+
+    return candidates
+
+
+def find_compiler(host_os, target_os):
+    for candidate in compiler_candidates(host_os, target_os):
+        if shutil.which(candidate["name"]):
+            return candidate
+    return None
+
+
+def compiler_command(candidate, c_path, binary_path):
+    if candidate["kind"] == "posix":
+        return [candidate["name"], str(c_path), "-o", str(binary_path)]
+
+    if candidate["kind"] == "msvc":
+        return [
+            candidate["name"],
+            str(c_path),
+            "/nologo",
+            f"/Fe:{binary_path}",
+        ]
+
+    if candidate["kind"] == "zig":
+        return [
+            candidate["name"],
+            "cc",
+            "-target",
+            candidate["target"],
+            str(c_path),
+            "-o",
+            str(binary_path),
+        ]
+
+    raise ViperCompileError(f"VP: Error, Unknown compiler kind '{candidate['kind']}'")
+
+
+def build_binary(c_path, target_os="native", binary_path=None):
+    host_os = detect_host_os()
+    target_os = host_os if target_os == "native" else target_os
+
+    if target_os not in {"macos", "linux", "windows"}:
+        raise ViperCompileError(f"VP: Error, Unsupported target OS '{target_os}'")
+
+    if binary_path is None:
+        binary_path = native_binary_path(c_path, target_os)
+    else:
+        binary_path = Path(binary_path).resolve()
+
+    candidate = find_compiler(host_os, target_os)
+    if candidate is None:
+        raise ViperCompileError(
+            f"VP: Error, No suitable C compiler found for host '{host_os}' and target '{target_os}'"
+        )
+
+    command = compiler_command(candidate, c_path, binary_path)
+
+    try:
+        result = subprocess.run(
+            command,
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+    except subprocess.CalledProcessError as error:
+        details = error.stderr.strip() or error.stdout.strip() or "unknown compiler error"
+        raise ViperCompileError(
+            f"VP: Error, C compilation failed with '{candidate['name']}'\n    {details}"
+        ) from error
+
+    return binary_path, candidate["name"]
 
 
 def extract_string(token):
@@ -638,17 +789,38 @@ def compile_file(input_path, output_path=None):
     return output_path
 
 
+def parse_cli_args(argv):
+    args = list(argv)
+    target_os = "native"
+
+    if len(args) >= 2 and args[0] == "--target":
+        target_os = args[1].lower()
+        args = args[2:]
+
+    if not args:
+        raise ViperCompileError(
+            "Usage: python Viper_compiler/main.py [--target native|macos|linux|windows] <file.vp> [output.c] [output_binary]"
+        )
+
+    input_path = args[0]
+    output_c = args[1] if len(args) >= 2 else None
+    output_binary = args[2] if len(args) >= 3 else None
+
+    if len(args) > 3:
+        raise ViperCompileError(
+            "Usage: python Viper_compiler/main.py [--target native|macos|linux|windows] <file.vp> [output.c] [output_binary]"
+        )
+
+    return input_path, output_c, output_binary, target_os
+
+
 def main():
-    if len(sys.argv) < 2:
-        print("Usage: python Viper_compiler/main.py <file.vp> [output.c]")
-        return 1
-
-    input_path = sys.argv[1]
-    output_path = sys.argv[2] if len(sys.argv) > 2 else None
-
     try:
-        written_path = compile_file(input_path, output_path)
+        input_path, output_c, output_binary, target_os = parse_cli_args(sys.argv[1:])
+        written_path = compile_file(input_path, output_c)
+        binary_path, compiler_name = build_binary(written_path, target_os, output_binary)
         print(f"Wrote {written_path}")
+        print(f"Built {binary_path} with {compiler_name}")
         return 0
     except ViperCompileError as error:
         print(error)
