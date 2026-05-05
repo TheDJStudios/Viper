@@ -5,5 +5,5 @@ import javax.swing.Icon
 
 object ViperIcons {
     @JvmField
-    val FILE: Icon = IconLoader.getIcon("/icons/viper.png", ViperIcons::class.java)
+    val FILE: Icon = IconLoader.getIcon("/icons/viper.svg", ViperIcons::class.java)
 }

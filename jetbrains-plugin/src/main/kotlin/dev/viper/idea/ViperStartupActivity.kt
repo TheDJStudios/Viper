@@ -81,7 +81,7 @@ private class ViperRuntimeManager(
         val latestRelease = ViperGitHubReleaseClient.fetchReleases()
             .asSequence()
             .filterNot { it.prerelease }
-            .filterNot { it.tagName.startsWith(PLUGIN_RELEASE_PREFIX) }
+            .filterNot { it.tagName.startsWith(PLUGIN_TAG_PREFIX) }
             .maxWithOrNull(compareBy<ViperRelease> { it.versionForComparison() }.thenBy { it.publishedAt })
             ?: return
 
@@ -104,7 +104,7 @@ private class ViperRuntimeManager(
         val stagingDir = Files.createTempDirectory("viper-runtime-unpack-")
 
         try {
-            ViperGitHubReleaseClient.downloadTo(latestRelease.zipballUrl, tempZip)
+            ViperGitHubReleaseClient.downloadTo(latestRelease.sourceArchiveUrl(), tempZip)
             unzip(tempZip, stagingDir)
 
             val compilerSource = stagingDir.findRelative(COMPILER_SOURCE_PATH)
@@ -187,11 +187,11 @@ private class ViperPluginUpdater(
         val latestPluginRelease = ViperGitHubReleaseClient.fetchReleases()
             .asSequence()
             .filterNot { it.prerelease }
-            .filter { it.tagName.startsWith(PLUGIN_RELEASE_PREFIX) }
+            .filter { it.tagName.startsWith(PLUGIN_TAG_PREFIX) }
             .maxWithOrNull(compareBy<ViperRelease> { it.versionForComparison() }.thenBy { it.publishedAt })
             ?: return
 
-        val releaseVersion = latestPluginRelease.tagName.removePrefix(PLUGIN_RELEASE_PREFIX)
+        val releaseVersion = latestPluginRelease.tagName.removePrefix(PLUGIN_TAG_PREFIX).removePrefix("v")
         if (VersionComparatorUtil.compare(releaseVersion, currentVersion) <= 0) {
             return
         }
@@ -277,7 +277,6 @@ private object ViperGitHubReleaseClient {
                     ViperRelease(
                         tagName = item.getString("tag_name"),
                         htmlUrl = item.getString("html_url"),
-                        zipballUrl = item.getString("zipball_url"),
                         prerelease = item.getBoolean("prerelease"),
                         publishedAt = OffsetDateTime.parse(item.getString("published_at")),
                         assets = assets,
@@ -306,16 +305,17 @@ private object ViperGitHubReleaseClient {
 private data class ViperRelease(
     val tagName: String,
     val htmlUrl: String,
-    val zipballUrl: String,
     val prerelease: Boolean,
     val publishedAt: OffsetDateTime,
     val assets: List<ViperReleaseAsset>,
 ) {
     fun versionForComparison(): String = when {
-        tagName.startsWith(PLUGIN_RELEASE_PREFIX) -> tagName.removePrefix(PLUGIN_RELEASE_PREFIX)
+        tagName.startsWith(PLUGIN_TAG_PREFIX) -> tagName.removePrefix(PLUGIN_TAG_PREFIX).removePrefix("v")
         tagName.startsWith("v") -> tagName.removePrefix("v")
         else -> tagName
     }
+
+    fun sourceArchiveUrl(): String = "https://github.com/TheDJStudios/Viper/archive/refs/tags/$tagName.zip"
 }
 
 private data class ViperReleaseAsset(
@@ -445,6 +445,6 @@ private fun Path.deleteRecursivelyIfExists() {
 }
 
 private const val PLUGIN_ID = "dev.viper.idea"
-private const val PLUGIN_RELEASE_PREFIX = "plugin-v"
+private const val PLUGIN_TAG_PREFIX = "plugin-"
 private const val RELEASES_API_URL = "https://api.github.com/repos/TheDJStudios/Viper/releases"
 private const val NOTIFICATION_GROUP_ID = "Viper Notifications"

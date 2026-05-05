@@ -27,6 +27,18 @@ dependencies {
     }
 }
 
+tasks.processResources {
+    from(projectDir.parentFile.resolve("assets/logo.svg")) {
+        into("META-INF")
+        rename { "pluginIcon.svg" }
+    }
+
+    from(projectDir.parentFile.resolve("assets/logo.svg")) {
+        into("icons")
+        rename { "viper.svg" }
+    }
+}
+
 intellijPlatform {
     pluginConfiguration {
         ideaVersion {
