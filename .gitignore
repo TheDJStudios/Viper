@@ -6,7 +6,10 @@
 /jetbrains-plugin/build/idea-sandbox
 /jetbrains-plugin/build/classes
 /jetbrains-plugin/.gradle
-/jetbrains-plugin/gradle
+/jetbrains-plugin/gradle/*
+!/jetbrains-plugin/gradle/wrapper/
+!/jetbrains-plugin/gradle/wrapper/gradle-wrapper.jar
+!/jetbrains-plugin/gradle/wrapper/gradle-wrapper.properties
 /jetbrains-plugin/build/resources
 /jetbrains-plugin/build/patchedPluginXmlFiles
 /jetbrains-plugin/build/reports
