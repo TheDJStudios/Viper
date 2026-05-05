@@ -40,7 +40,7 @@ jobs:
 
       - name: Send plugin zip to Discord
         if: ${{ env.DISCORD_WEBHOOK_URL != '' }}
-        uses: TheDJGamerYT/discord-webhook-upload-action@v0.2
+        uses: TheDJGamerYT/discord-webhook-upload-action@v0.2.0
         with:
           url: ${{ env.DISCORD_WEBHOOK_URL }}
           username: Viper CI
