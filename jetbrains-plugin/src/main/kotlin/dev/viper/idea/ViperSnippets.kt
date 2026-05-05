@@ -28,10 +28,22 @@ object ViperSnippets {
             tailText = " control flow",
         ),
         ViperSnippet(
+            label = "try",
+            lookupText = "try",
+            insertText = "try {\n    \n}",
+            tailText = " error guard",
+        ),
+        ViperSnippet(
             label = "print",
             lookupText = "print",
             insertText = "print();",
             tailText = " builtin",
+        ),
+        ViperSnippet(
+            label = "collect",
+            lookupText = "collect",
+            insertText = "collect()",
+            tailText = " input",
         ),
         ViperSnippet(
             label = "import",

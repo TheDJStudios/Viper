@@ -19,6 +19,7 @@ statement: print_stmt
          | return_stmt
          | call_stmt
          | if_stmt
+         | try_stmt
 
 print_stmt: "print" "(" expr ")" ";"
 var_stmt: "$" NAME ":" type "=" expr ";"
@@ -28,6 +29,7 @@ call_stmt: NAME "(" ")" ";"
 if_stmt: "if" "(" expr ")" block else_if_clause* else_clause?
 else_if_clause: "else" "if" "(" expr ")" block
 else_clause: "else" block
+try_stmt: "try" block
 block: "{" statement* "}"
 
 type: "int"      -> int_type
@@ -73,6 +75,7 @@ type: "int"      -> int_type
      | "true"     -> true
      | "false"    -> false
      | "none"     -> none_literal
+     | "collect" "(" ")" -> collect
      | NAME "(" ")" -> call_expr
      | "$argc"    -> argc
      | "$args"    -> args
@@ -194,11 +197,19 @@ class ViperInterpreter:
             raise ReturnSignal(value)
 
         if node.data == "call_stmt":
-            self.call_function(str(node.children[0]))
+            name = str(node.children[0])
+            if name == "collect":
+                self.collect_input()
+                return
+            self.call_function(name)
             return
 
         if node.data == "if_stmt":
             self.execute_if_stmt(node)
+            return
+
+        if node.data == "try_stmt":
+            self.execute_try_stmt(node)
             return
 
         raise ViperRuntimeError(f"VP: Error, Unknown statement '{node.data}'")
@@ -223,6 +234,12 @@ class ViperInterpreter:
             elif clause.data == "else_clause":
                 self.execute_block(clause.children[0])
                 return
+
+    def execute_try_stmt(self, node):
+        try:
+            self.execute_block(node.children[0])
+        except ViperRuntimeError:
+            return
 
     def execute_block(self, block_node):
         for statement in block_node.children:
@@ -256,6 +273,9 @@ class ViperInterpreter:
 
         if data == "args":
             return list(self.vp_args)
+
+        if data == "collect":
+            return self.collect_input()
 
         if data == "variable":
             name = str(node.children[0])
@@ -313,6 +333,12 @@ class ViperInterpreter:
             return self.evaluate_comparison(data, left, right)
 
         raise ViperRuntimeError(f"VP: Error, Unknown expression '{data}'")
+
+    def collect_input(self):
+        try:
+            return input()
+        except EOFError:
+            return ""
 
     def call_function(self, name):
         if name not in self.functions:

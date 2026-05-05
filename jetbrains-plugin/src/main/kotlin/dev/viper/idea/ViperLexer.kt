@@ -192,9 +192,9 @@ class ViperLexer : LexerBase() {
     }
 
     companion object {
-        private val CONTROL_KEYWORDS = setOf("import", "if", "else", "return", "and")
+        private val CONTROL_KEYWORDS = setOf("import", "if", "else", "try", "return", "and")
         private val TYPES = ViperCompletionData.TYPES.toSet()
-        private val BUILTINS = setOf("print")
+        private val BUILTINS = setOf("print", "collect")
         private val BOOLEAN_LITERALS = setOf("true", "false")
 
         private val TWO_CHAR_OPERATORS = setOf("==", "!=", "<=", ">=")

@@ -23,6 +23,7 @@ statement: print_stmt
          | return_stmt
          | call_stmt
          | if_stmt
+         | try_stmt
 
 print_stmt: "print" "(" expr ")" ";"
 var_stmt: "$" NAME ":" type "=" expr ";"
@@ -32,6 +33,7 @@ call_stmt: NAME "(" ")" ";"
 if_stmt: "if" "(" expr ")" block else_if_clause* else_clause?
 else_if_clause: "else" "if" "(" expr ")" block
 else_clause: "else" block
+try_stmt: "try" block
 block: "{" statement* "}"
 
 type: "int"      -> int_type
@@ -77,6 +79,7 @@ type: "int"      -> int_type
      | "true"     -> true
      | "false"    -> false
      | "none"     -> none_literal
+     | "collect" "(" ")" -> collect
      | NAME "(" ")" -> call_expr
      | "$argc"    -> argc
      | "$args"    -> args
@@ -410,9 +413,26 @@ class CCompiler:
             "#include <stdbool.h>",
             "#include <stdio.h>",
             "#include <stdlib.h>",
+            "#include <string.h>",
             "",
             "static int vp_argc = 0;",
             "static char **vp_argv = NULL;",
+            "",
+            "static char *vp_collect(void) {",
+            "    char buffer[4096];",
+            "    if (fgets(buffer, sizeof(buffer), stdin) == NULL) {",
+            "        buffer[0] = '\\0';",
+            "    }",
+            "    buffer[strcspn(buffer, \"\\r\\n\")] = '\\0';",
+            "    size_t length = strlen(buffer) + 1;",
+            "    char *copy = (char *)malloc(length);",
+            "    if (copy == NULL) {",
+            "        fputs(\"VP: Error, Failed to collect input\\n\", stderr);",
+            "        exit(1);",
+            "    }",
+            "    memcpy(copy, buffer, length);",
+            "    return copy;",
+            "}",
             "",
             "static void vp_print_int(long long value) { printf(\"%lld\\n\", value); }",
             "static void vp_print_double(double value) { printf(\"%g\\n\", value); }",
@@ -524,12 +544,17 @@ class CCompiler:
 
         if node.data == "call_stmt":
             name = str(node.children[0])
+            if name == "collect":
+                return [f"{indent}(void)vp_collect();"]
             if name not in self.functions:
                 raise ViperCompileError(f"VP: Error, Undefined function '{name}'")
             return [f"{indent}{self.c_function_name(name)}();"]
 
         if node.data == "if_stmt":
             return self.emit_if_stmt(node, scope, indent_level)
+
+        if node.data == "try_stmt":
+            return self.emit_try_stmt(node, scope, indent_level)
 
         raise ViperCompileError(f"VP: Error, Unknown statement '{node.data}'")
 
@@ -559,6 +584,17 @@ class CCompiler:
 
         return lines
 
+    def emit_try_stmt(self, node, scope, indent_level):
+        indent = "    " * indent_level
+        lines = [f"{indent}{{"]
+        for statement in node.children[0].children:
+            try:
+                lines.extend(self.emit_statement(statement, scope, indent_level + 1))
+            except ViperCompileError:
+                continue
+        lines.append(f"{indent}}}")
+        return lines
+
     def emit_expr(self, node, scope):
         if isinstance(node, Token):
             raise ViperCompileError(f"VP: Error, Unexpected token '{node}' in expression")
@@ -586,6 +622,9 @@ class CCompiler:
 
         if data == "args":
             return "vp_argv", "str[]"
+
+        if data == "collect":
+            return "vp_collect()", "str"
 
         if data == "variable":
             name = str(node.children[0])

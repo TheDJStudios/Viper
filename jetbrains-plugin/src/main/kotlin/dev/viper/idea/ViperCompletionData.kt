@@ -5,6 +5,7 @@ object ViperCompletionData {
         "import",
         "if",
         "else",
+        "try",
         "return",
         "and",
         "print",
@@ -33,6 +34,7 @@ object ViperCompletionData {
 
     val BUILTINS = listOf(
         "print",
+        "collect",
         "\$argc",
         "\$args",
         "true",
