@@ -10,7 +10,7 @@ class ViperFileType private constructor() : LanguageFileType(ViperLanguage) {
 
     override fun getDefaultExtension(): String = "vp"
 
-    override fun getIcon(): Icon? = null
+    override fun getIcon(): Icon = ViperIcons.FILE
 
     companion object {
         @JvmField

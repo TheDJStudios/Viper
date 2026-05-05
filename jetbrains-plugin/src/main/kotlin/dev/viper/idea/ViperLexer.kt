@@ -115,8 +115,21 @@ class ViperLexer : LexerBase() {
         }
 
         if (current == '$') {
-            tokenEnd = index + 1
-            tokenType = ViperTokenTypes.DOLLAR
+            index++
+            while (index < endOffset && buffer[index].isWhitespace()) {
+                index++
+            }
+            val identifierStart = index
+            while (index < endOffset && buffer[index].isIdentifierPart()) {
+                index++
+            }
+            tokenEnd = if (identifierStart == index) tokenStart + 1 else index
+            val text = buffer.subSequence(tokenStart, tokenEnd).toString().replace(" ", "")
+            tokenType = when (text) {
+                "\$argc", "\$args" -> ViperTokenTypes.BUILTIN
+                "$" -> ViperTokenTypes.DOLLAR
+                else -> ViperTokenTypes.VARIABLE
+            }
             return
         }
 
@@ -127,7 +140,15 @@ class ViperLexer : LexerBase() {
             }
             tokenEnd = index
             val text = buffer.subSequence(tokenStart, tokenEnd).toString()
-            tokenType = if (KEYWORDS.contains(text)) ViperTokenTypes.KEYWORD else ViperTokenTypes.IDENTIFIER
+            tokenType = when {
+                CONTROL_KEYWORDS.contains(text) -> ViperTokenTypes.KEYWORD
+                TYPES.contains(text) -> ViperTokenTypes.TYPE
+                BOOLEAN_LITERALS.contains(text) -> ViperTokenTypes.BOOLEAN
+                text == "none" -> ViperTokenTypes.NONE
+                BUILTINS.contains(text) -> ViperTokenTypes.BUILTIN
+                nextNonWhitespace(index) == '(' -> ViperTokenTypes.FUNCTION
+                else -> ViperTokenTypes.IDENTIFIER
+            }
             return
         }
 
@@ -158,8 +179,23 @@ class ViperLexer : LexerBase() {
 
     private fun Char.isIdentifierPart(): Boolean = this == '_' || isLetterOrDigit()
 
+    private fun nextNonWhitespace(index: Int): Char? {
+        var cursor = index
+        while (cursor < endOffset) {
+            val candidate = buffer[cursor]
+            if (!candidate.isWhitespace()) {
+                return candidate
+            }
+            cursor++
+        }
+        return null
+    }
+
     companion object {
-        private val KEYWORDS = (ViperCompletionData.KEYWORDS + ViperCompletionData.TYPES).toSet()
+        private val CONTROL_KEYWORDS = setOf("import", "if", "else", "return", "and")
+        private val TYPES = ViperCompletionData.TYPES.toSet()
+        private val BUILTINS = setOf("print")
+        private val BOOLEAN_LITERALS = setOf("true", "false")
 
         private val TWO_CHAR_OPERATORS = setOf("==", "!=", "<=", ">=")
     }

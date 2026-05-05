@@ -10,7 +10,7 @@ import javax.swing.Icon
 class ViperColorSettingsPage : ColorSettingsPage {
     override fun getDisplayName(): String = "Viper"
 
-    override fun getIcon(): Icon? = null
+    override fun getIcon(): Icon = ViperIcons.FILE
 
     override fun getHighlighter(): SyntaxHighlighter = ViperSyntaxHighlighter()
 
@@ -39,7 +39,13 @@ class ViperColorSettingsPage : ColorSettingsPage {
 
     override fun getAttributeDescriptors(): Array<AttributesDescriptor> = arrayOf(
         AttributesDescriptor("Keyword", ViperSyntaxHighlighter.KEYWORD),
+        AttributesDescriptor("Type", ViperSyntaxHighlighter.TYPE),
+        AttributesDescriptor("Builtin", ViperSyntaxHighlighter.BUILTIN),
+        AttributesDescriptor("Boolean", ViperSyntaxHighlighter.BOOLEAN),
+        AttributesDescriptor("None literal", ViperSyntaxHighlighter.NONE),
         AttributesDescriptor("Identifier", ViperSyntaxHighlighter.IDENTIFIER),
+        AttributesDescriptor("Variable", ViperSyntaxHighlighter.VARIABLE),
+        AttributesDescriptor("Function call", ViperSyntaxHighlighter.FUNCTION),
         AttributesDescriptor("Number", ViperSyntaxHighlighter.NUMBER),
         AttributesDescriptor("String", ViperSyntaxHighlighter.STRING),
         AttributesDescriptor("Comment", ViperSyntaxHighlighter.COMMENT),

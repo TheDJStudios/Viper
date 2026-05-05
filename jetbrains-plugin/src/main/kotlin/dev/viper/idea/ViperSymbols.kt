@@ -17,6 +17,7 @@ object ViperSymbols {
     )
     private val variableRegex = Regex("""\$\s*([A-Za-z_][A-Za-z0-9_]*)\s*:""")
     private val importRegex = Regex("""import\s+"([^"]+)";""")
+    private val localReferenceRegex = Regex("""(?<!\$)\b([A-Za-z_][A-Za-z0-9_]*)\b""")
 
     fun collect(file: PsiFile): ViperCollectedSymbols {
         val functions = linkedSetOf<String>()
@@ -51,6 +52,11 @@ object ViperSymbols {
             .map { "\$${it.groupValues[1]}" }
             .forEach(variables::add)
 
+        localReferenceRegex.findAll(text)
+            .map { it.groupValues[1] }
+            .filterNot { it in RESERVED_WORDS }
+            .forEach(variables::add)
+
         val parent = path.parent ?: return
         importRegex.findAll(text)
             .map { it.groupValues[1] }
@@ -67,4 +73,10 @@ object ViperSymbols {
                 }
             }
     }
+
+    private val RESERVED_WORDS = (
+        ViperCompletionData.KEYWORDS +
+            ViperCompletionData.TYPES +
+            listOf("main")
+        ).toSet()
 }

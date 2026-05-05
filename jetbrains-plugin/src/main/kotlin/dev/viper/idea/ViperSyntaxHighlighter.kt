@@ -13,7 +13,13 @@ class ViperSyntaxHighlighter : SyntaxHighlighterBase() {
 
     override fun getTokenHighlights(tokenType: IElementType): Array<TextAttributesKey> = when (tokenType) {
         ViperTokenTypes.KEYWORD -> pack(KEYWORD)
+        ViperTokenTypes.TYPE -> pack(TYPE)
+        ViperTokenTypes.BUILTIN -> pack(BUILTIN)
+        ViperTokenTypes.BOOLEAN -> pack(BOOLEAN)
+        ViperTokenTypes.NONE -> pack(NONE)
         ViperTokenTypes.IDENTIFIER -> pack(IDENTIFIER)
+        ViperTokenTypes.VARIABLE -> pack(VARIABLE)
+        ViperTokenTypes.FUNCTION -> pack(FUNCTION)
         ViperTokenTypes.NUMBER -> pack(NUMBER)
         ViperTokenTypes.STRING -> pack(STRING)
         ViperTokenTypes.COMMENT -> pack(COMMENT)
@@ -35,8 +41,20 @@ class ViperSyntaxHighlighter : SyntaxHighlighterBase() {
     companion object {
         val KEYWORD: TextAttributesKey =
             TextAttributesKey.createTextAttributesKey("VIPER_KEYWORD", DefaultLanguageHighlighterColors.KEYWORD)
+        val TYPE: TextAttributesKey =
+            TextAttributesKey.createTextAttributesKey("VIPER_TYPE", DefaultLanguageHighlighterColors.CLASS_NAME)
+        val BUILTIN: TextAttributesKey =
+            TextAttributesKey.createTextAttributesKey("VIPER_BUILTIN", DefaultLanguageHighlighterColors.PREDEFINED_SYMBOL)
+        val BOOLEAN: TextAttributesKey =
+            TextAttributesKey.createTextAttributesKey("VIPER_BOOLEAN", DefaultLanguageHighlighterColors.CONSTANT)
+        val NONE: TextAttributesKey =
+            TextAttributesKey.createTextAttributesKey("VIPER_NONE", DefaultLanguageHighlighterColors.CONSTANT)
         val IDENTIFIER: TextAttributesKey =
             TextAttributesKey.createTextAttributesKey("VIPER_IDENTIFIER", DefaultLanguageHighlighterColors.IDENTIFIER)
+        val VARIABLE: TextAttributesKey =
+            TextAttributesKey.createTextAttributesKey("VIPER_VARIABLE", DefaultLanguageHighlighterColors.LOCAL_VARIABLE)
+        val FUNCTION: TextAttributesKey =
+            TextAttributesKey.createTextAttributesKey("VIPER_FUNCTION", DefaultLanguageHighlighterColors.FUNCTION_CALL)
         val NUMBER: TextAttributesKey =
             TextAttributesKey.createTextAttributesKey("VIPER_NUMBER", DefaultLanguageHighlighterColors.NUMBER)
         val STRING: TextAttributesKey =

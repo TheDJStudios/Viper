@@ -11,7 +11,13 @@ object ViperTokenTypes {
     val BAD_CHARACTER = TokenType.BAD_CHARACTER
 
     val KEYWORD = ViperTokenType("KEYWORD")
+    val TYPE = ViperTokenType("TYPE")
+    val BUILTIN = ViperTokenType("BUILTIN")
+    val BOOLEAN = ViperTokenType("BOOLEAN")
+    val NONE = ViperTokenType("NONE")
     val IDENTIFIER = ViperTokenType("IDENTIFIER")
+    val VARIABLE = ViperTokenType("VARIABLE")
+    val FUNCTION = ViperTokenType("FUNCTION")
     val NUMBER = ViperTokenType("NUMBER")
     val STRING = ViperTokenType("STRING")
     val COMMENT = ViperTokenType("COMMENT")

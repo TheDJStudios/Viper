@@ -6,8 +6,11 @@ Current support:
 
 - `.vp` file recognition
 - syntax highlighting
+- richer token coloring for types, builtins, variables, function calls, and literals
 - line comments with `%`
 - brace matching
+- auto-indent on Enter, including block bodies
+- context-aware completion for imports, types, functions, variables, builtins, and snippets
 - basic PSI/parser wiring so files open as a real language, not plain text
 
 ## Build

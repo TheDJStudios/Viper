@@ -1,0 +1,51 @@
+name: Build JetBrains Plugin
+
+on:
+  push:
+    branches:
+      - "**"
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    env:
+      DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+          cache: gradle
+
+      - name: Make Gradle wrapper executable
+        run: chmod +x gradlew
+        working-directory: jetbrains-plugin
+
+      - name: Build plugin distribution
+        run: ./gradlew buildPlugin
+        working-directory: jetbrains-plugin
+
+      - name: Upload build artifact to GitHub
+        uses: actions/upload-artifact@v4
+        with:
+          name: viper-jetbrains-plugin-${{ github.run_number }}
+          path: jetbrains-plugin/build/distributions/*.zip
+          if-no-files-found: error
+
+      - name: Send plugin zip to Discord
+        if: ${{ env.DISCORD_WEBHOOK_URL != '' }}
+        uses: TheDJGamerYT/discord-webhook-upload-action@v0.2
+        with:
+          url: ${{ env.DISCORD_WEBHOOK_URL }}
+          username: Viper CI
+          message_header: |
+            Built Viper JetBrains plugin `${{ github.sha }}`
+          message_commit: |
+            [${commitMessage}](<${commitUrl}>) by [${authorName}](<${authorUrl}>)
+          file: jetbrains-plugin/build/distributions/*.zip

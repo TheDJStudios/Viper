@@ -6,11 +6,11 @@ object ViperCompletionData {
         "if",
         "else",
         "return",
+        "and",
         "print",
         "true",
         "false",
         "none",
-        "and",
     )
 
     val TYPES = listOf(

@@ -31,5 +31,6 @@
                 language="Viper"
                 implementationClass="dev.viper.idea.ViperCompletionContributor"/>
         <colorSettingsPage implementation="dev.viper.idea.ViperColorSettingsPage"/>
+        <enterHandlerDelegate implementation="dev.viper.idea.ViperEnterHandlerDelegate"/>
     </extensions>
 </idea-plugin>
