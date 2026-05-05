@@ -1,1 +1,15 @@
 .DS_Store
+/jetbrains-plugin/build/tmp
+/jetbrains-plugin/build/kotlin
+/jetbrains-plugin/build/instrumented
+/jetbrains-plugin/build/libs
+/jetbrains-plugin/build/idea-sandbox
+/jetbrains-plugin/build/classes
+/jetbrains-plugin/.gradle
+/jetbrains-plugin/gradle
+/jetbrains-plugin/build/resources
+/jetbrains-plugin/build/patchedPluginXmlFiles
+/jetbrains-plugin/build/reports
+/jetbrains-plugin/build/distributions/viper-jetbrains-plugin
+jetbrains-plugin/build/coroutines-javaagent.jar
+jetbrains-plugin/build/20260504_6787220468623431736.compiler.options

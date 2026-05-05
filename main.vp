@@ -24,3 +24,9 @@ if (ready and number == 15) {
 } else {
     print("else branch");
 }
+
+if (ready and number == 10) {
+    print("Testing the new jetbrains plugin");
+} else {
+    print("Failed to meet conditions");
+}

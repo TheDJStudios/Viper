@@ -1,0 +1,35 @@
+<idea-plugin>
+    <id>dev.viper.idea</id>
+    <name>Viper Language Support</name>
+    <vendor email="devnull@example.com">Viper</vendor>
+    <description><![CDATA[
+        Basic language support for Viper files in JetBrains IDEs.
+    ]]></description>
+
+    <depends>com.intellij.modules.platform</depends>
+
+    <extensions defaultExtensionNs="com.intellij">
+        <fileType
+                name="Viper"
+                implementationClass="dev.viper.idea.ViperFileType"
+                fieldName="INSTANCE"
+                language="Viper"
+                extensions="vp"/>
+        <lang.syntaxHighlighterFactory
+                language="Viper"
+                implementationClass="dev.viper.idea.ViperSyntaxHighlighterFactory"/>
+        <lang.parserDefinition
+                language="Viper"
+                implementationClass="dev.viper.idea.ViperParserDefinition"/>
+        <lang.commenter
+                language="Viper"
+                implementationClass="dev.viper.idea.ViperCommenter"/>
+        <lang.braceMatcher
+                language="Viper"
+                implementationClass="dev.viper.idea.ViperBraceMatcher"/>
+        <completion.contributor
+                language="Viper"
+                implementationClass="dev.viper.idea.ViperCompletionContributor"/>
+        <colorSettingsPage implementation="dev.viper.idea.ViperColorSettingsPage"/>
+    </extensions>
+</idea-plugin>
