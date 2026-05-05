@@ -1,0 +1,7 @@
+int importedValue() {
+    return 6 * 7;
+}
+
+void showImportedMessage() {
+    print("from secondary.vp");
+}

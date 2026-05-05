@@ -1,10 +1,26 @@
-$ number: int = 5 * 3; %variable
+import "secondary.vp";
 
-% comment
+int localValue() {
+    return 4 * 5;
+}
+
+$ number: int = 5 * 3;
+$ ready: bool = true;
+$ missing: none = none;
 
 print("Viper file successfully ran");
-print("THis is the first ever viper file ever made. and this is only the beginning");
-print("This line contains a print statement and a comment"); % comment
 print(number);
 print(2 + 3 * 4);
 print((2 + 3) * 4);
+print(missing);
+print(localValue());
+print(importedValue());
+showImportedMessage();
+
+if (ready and number == 15) {
+    print("if branch");
+} else if (number > 20) {
+    print("else if branch");
+} else {
+    print("else branch");
+}
