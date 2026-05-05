@@ -1,7 +1,7 @@
 <idea-plugin>
     <id>dev.viper.idea</id>
     <name>Viper Language Support</name>
-    <vendor email="devnull@example.com">Viper</vendor>
+    <vendor email="devnull@example.com">TheDJStudios</vendor>
     <description><![CDATA[
         Basic language support for Viper files in JetBrains IDEs.
     ]]></description>
@@ -32,5 +32,7 @@
                 implementationClass="dev.viper.idea.ViperCompletionContributor"/>
         <colorSettingsPage implementation="dev.viper.idea.ViperColorSettingsPage"/>
         <enterHandlerDelegate implementation="dev.viper.idea.ViperEnterHandlerDelegate"/>
+        <postStartupActivity implementation="dev.viper.idea.ViperStartupActivity"/>
+        <notificationGroup id="Viper Notifications" displayType="BALLOON" isLogByDefault="true"/>
     </extensions>
 </idea-plugin>

@@ -4,7 +4,7 @@ plugins {
 }
 
 group = "dev.viper"
-version = "0.1.3"
+version = "0.1.4"
 
 repositories {
     mavenCentral()
@@ -19,6 +19,8 @@ kotlin {
 }
 
 dependencies {
+    implementation("org.json:json:20240303")
+
     intellijPlatform {
         create("IC", "2024.1.7")
         instrumentationTools()
