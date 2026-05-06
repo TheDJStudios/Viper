@@ -20,6 +20,7 @@ object ViperTokenTypes {
     val FUNCTION = ViperTokenType("FUNCTION")
     val NUMBER = ViperTokenType("NUMBER")
     val STRING = ViperTokenType("STRING")
+    val CHAR = ViperTokenType("CHAR")
     val COMMENT = ViperTokenType("COMMENT")
     val OPERATOR = ViperTokenType("OPERATOR")
     val DOLLAR = ViperTokenType("DOLLAR")
@@ -34,5 +35,5 @@ object ViperTokenTypes {
     val SEMICOLON = ViperTokenType("SEMICOLON")
 
     val COMMENTS = TokenSet.create(COMMENT)
-    val STRINGS = TokenSet.create(STRING)
+    val STRINGS = TokenSet.create(STRING, CHAR)
 }

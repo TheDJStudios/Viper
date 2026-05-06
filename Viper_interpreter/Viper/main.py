@@ -1,97 +1,15 @@
 import sys
+import ast
+import re
 from pathlib import Path
-from lark import Lark, Token
 
+PROJECT_ROOT = Path(__file__).resolve().parents[2]
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(PROJECT_ROOT))
 
-VIPER_GRAMMAR = r"""
-start: item*
+from lark import Token
 
-item: import_stmt
-    | func_def
-    | statement
-
-import_stmt: "import" STRING ";"
-func_def: type NAME "(" ")" block
-
-statement: print_stmt
-         | var_stmt
-         | assign_stmt
-         | return_stmt
-         | call_stmt
-         | if_stmt
-         | try_stmt
-
-print_stmt: "print" "(" expr ")" ";"
-var_stmt: "$" NAME ":" type "=" expr ";"
-assign_stmt: "$" NAME "=" expr ";"
-return_stmt: "return" expr ";"
-call_stmt: NAME "(" ")" ";"
-if_stmt: "if" "(" expr ")" block else_if_clause* else_clause?
-else_if_clause: "else" "if" "(" expr ")" block
-else_clause: "else" block
-try_stmt: "try" block
-block: "{" statement* "}"
-
-type: "int"      -> int_type
-    | "void"     -> void_type
-    | "float"    -> float_type
-    | "double"   -> double_type
-    | "str"      -> str_type
-    | "string"   -> string_type
-    | "char"     -> char_type
-    | "bool"     -> bool_type
-    | "none"     -> none_type
-    | "char[]"   -> char_arr_type
-    | "int[]"    -> int_arr_type
-    | "float[]"  -> float_arr_type
-    | "double[]" -> double_arr_type
-    | "str[]"    -> str_arr_type
-    | "string[]" -> string_arr_type
-
-?expr: expr "and" comparison -> and_op
-     | comparison
-
-?comparison: arithmetic "==" arithmetic -> eq
-           | arithmetic "!=" arithmetic -> ne
-           | arithmetic "<=" arithmetic -> le
-           | arithmetic ">=" arithmetic -> ge
-           | arithmetic "<" arithmetic  -> lt
-           | arithmetic ">" arithmetic  -> gt
-           | arithmetic
-
-?arithmetic: arithmetic "+" term -> add
-           | arithmetic "-" term -> sub
-           | term
-
-?term: term "*" unary -> mul
-     | term "/" unary -> div
-     | unary
-
-?unary: "-" unary -> neg
-      | atom
-
-?atom: STRING     -> string
-     | NUMBER     -> number
-     | "true"     -> true
-     | "false"    -> false
-     | "none"     -> none_literal
-     | "collect" "(" ")" -> collect
-     | NAME "(" ")" -> call_expr
-     | "$argc"    -> argc
-     | "$args"    -> args
-     | "$" NAME   -> variable
-     | NAME       -> variable
-     | "(" expr ")"
-
-%import common.CNAME -> NAME
-%import common.ESCAPED_STRING -> STRING
-%import common.NUMBER
-%import common.WS
-%ignore WS
-
-COMMENT: /%[^\n]*/
-%ignore COMMENT
-"""
+from Viper_core.language import TYPE_NAME_MAP, collect_program
 
 
 class ReturnSignal(Exception):
@@ -102,25 +20,6 @@ class ReturnSignal(Exception):
 
 class ViperRuntimeError(RuntimeError):
     pass
-
-
-TYPE_NAME_MAP = {
-    "int_type": "int",
-    "void_type": "void",
-    "float_type": "float",
-    "double_type": "double",
-    "str_type": "str",
-    "string_type": "str",
-    "char_type": "char",
-    "bool_type": "bool",
-    "none_type": "none",
-    "char_arr_type": "char[]",
-    "int_arr_type": "int[]",
-    "float_arr_type": "float[]",
-    "double_arr_type": "double[]",
-    "str_arr_type": "str[]",
-    "string_arr_type": "str[]",
-}
 
 
 class ViperInterpreter:
@@ -196,6 +95,11 @@ class ViperInterpreter:
             value = self.evaluate_expr(node.children[0])
             raise ReturnSignal(value)
 
+        if node.data == "collect_stmt":
+            prompt = self.evaluate_expr(node.children[0]) if node.children else None
+            self.collect_input(prompt)
+            return
+
         if node.data == "call_stmt":
             name = str(node.children[0])
             if name == "collect":
@@ -252,8 +156,13 @@ class ViperInterpreter:
         data = node.data
 
         if data == "string":
-            text = str(node.children[0])
-            return text[1:-1]
+            return ast.literal_eval(str(node.children[0]))
+
+        if data == "fstring":
+            return self.evaluate_interpolated_string(str(node.children[0]))
+
+        if data == "char":
+            return ast.literal_eval(str(node.children[0]))
 
         if data == "number":
             text = str(node.children[0])
@@ -275,7 +184,8 @@ class ViperInterpreter:
             return list(self.vp_args)
 
         if data == "collect":
-            return self.collect_input()
+            prompt = self.evaluate_expr(node.children[0]) if node.children else None
+            return self.collect_input(prompt)
 
         if data == "variable":
             name = str(node.children[0])
@@ -289,6 +199,8 @@ class ViperInterpreter:
         if data == "add":
             left = self.evaluate_expr(node.children[0])
             right = self.evaluate_expr(node.children[1])
+            if isinstance(left, str) or isinstance(right, str):
+                return str(self.format_value(left)) + str(self.format_value(right))
             self.require_numeric_operands("+", left, right)
             return left + right
 
@@ -334,11 +246,34 @@ class ViperInterpreter:
 
         raise ViperRuntimeError(f"VP: Error, Unknown expression '{data}'")
 
-    def collect_input(self):
+    def collect_input(self, prompt=None):
+        if prompt is not None:
+            print(self.format_value(prompt), end="", flush=True)
         try:
             return input()
         except EOFError:
             return ""
+
+    def evaluate_interpolated_string(self, token_text):
+        template = ast.literal_eval(token_text[1:])
+
+        def replace(match):
+            name = match.group(1)
+            value = self.lookup_interpolated_value(name)
+            return str(self.format_value(value))
+
+        return re.sub(r"\[([A-Za-z_][A-Za-z0-9_]*|\$[A-Za-z_][A-Za-z0-9_]*)\]", replace, template)
+
+    def lookup_interpolated_value(self, name):
+        if name == "$argc":
+            return len(self.vp_args)
+        if name == "$args":
+            return list(self.vp_args)
+
+        variable_name = name[1:] if name.startswith("$") else name
+        if variable_name not in self.variables:
+            raise ViperRuntimeError(f"VP: Error, Unknown variable '{variable_name}'")
+        return self.variables[variable_name]["value"]
 
     def call_function(self, name):
         if name not in self.functions:
@@ -482,97 +417,15 @@ class ViperInterpreter:
             return "false"
         return value
 
-
-parser = Lark(VIPER_GRAMMAR, parser="lalr")
-
-
-def parse_source(source_code, filename):
-    try:
-        return parser.parse(source_code)
-    except Exception as error:
-        raise ViperRuntimeError(f"{filename}: VP: Parse error\n    {error}") from error
-
-
-def resolve_import_path(raw_path, importer_path):
-    if raw_path.startswith("/"):
-        return Path(raw_path).resolve()
-
-    if importer_path == Path("<stdin>"):
-        base_dir = Path.cwd()
-    else:
-        base_dir = importer_path.parent
-
-    return (base_dir / raw_path).resolve()
-
-
-def extract_string(token):
-    text = str(token)
-    return text[1:-1]
-
-
-def hoist_functions(tree, filename, functions, loaded_files, active_files):
-    resolved_filename = filename.resolve()
-
-    if resolved_filename in active_files:
-        raise ViperRuntimeError(f"VP: Error, Circular import detected for '{resolved_filename}'")
-
-    if resolved_filename in loaded_files:
-        return
-
-    active_files.add(resolved_filename)
-
-    for item in tree.children:
-        child = item.children[0]
-
-        if child.data == "import_stmt":
-            import_target = extract_string(child.children[0])
-            import_path = resolve_import_path(import_target, resolved_filename)
-
-            if not import_path.exists():
-                raise ViperRuntimeError(
-                    f"VP: Error, Imported file not found: {import_target}"
-                )
-
-            import_source = import_path.read_text(encoding="utf-8")
-            import_tree = parse_source(import_source, str(import_path))
-            hoist_functions(import_tree, import_path, functions, loaded_files, active_files)
-
-        elif child.data == "func_def":
-            func_type = child.children[0]
-            func_name = str(child.children[1])
-            func_body = child.children[2]
-            ret_type = TYPE_NAME_MAP.get(func_type.data)
-
-            if ret_type is None:
-                raise ViperRuntimeError(f"VP: Error, Unknown type '{func_type.data}'")
-
-            if func_name in functions:
-                existing_file = functions[func_name]["source"]
-                raise ViperRuntimeError(
-                    f"VP: Error, Function '{func_name}' already defined in '{existing_file}'"
-                )
-
-            functions[func_name] = {
-                "ret_type": ret_type,
-                "body": func_body,
-                "source": str(resolved_filename),
-            }
-
-    active_files.remove(resolved_filename)
-    loaded_files.add(resolved_filename)
-
-
 def runsource(source_code, filename="<stdin>", vp_args=None):
     source_path = Path(filename).resolve() if filename != "<stdin>" else Path("<stdin>")
     vp_args = sys.argv[2:] if vp_args is None else vp_args
 
     try:
-        tree = parse_source(source_code, filename)
-        functions = {}
-        hoist_functions(tree, source_path, functions, set(), set())
-        interpreter = ViperInterpreter(functions, vp_args)
+        program = collect_program(source_path, source_code=source_code, error_cls=ViperRuntimeError)
+        interpreter = ViperInterpreter(program["functions"], vp_args)
 
-        if "main" in functions:
+        if "main" in program["functions"]:
             result = interpreter.call_function("main")
 
             if isinstance(result, int) and not isinstance(result, bool):
@@ -580,7 +433,7 @@ def runsource(source_code, filename="<stdin>", vp_args=None):
 
             return 0
 
-        interpreter.run_items(tree.children)
+        interpreter.run_items(program["tree"].children)
         return 0
 
     except ReturnSignal:

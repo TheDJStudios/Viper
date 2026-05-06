@@ -73,7 +73,19 @@ class ViperLexer : LexerBase() {
             return
         }
 
+        if (current == '#' && tokenStart + 1 < endOffset && buffer[tokenStart + 1] == '"') {
+            tokenEnd = scanDoubleQuotedString(tokenStart + 1)
+            tokenType = ViperTokenTypes.STRING
+            return
+        }
+
         if (current == '"') {
+            tokenEnd = scanDoubleQuotedString(tokenStart)
+            tokenType = ViperTokenTypes.STRING
+            return
+        }
+
+        if (current == '\'') {
             index++
             var escaped = false
             while (index < endOffset) {
@@ -82,14 +94,14 @@ class ViperLexer : LexerBase() {
                     escaped = false
                 } else if (c == '\\') {
                     escaped = true
-                } else if (c == '"') {
+                } else if (c == '\'') {
                     index++
                     break
                 }
                 index++
             }
             tokenEnd = index.coerceAtMost(endOffset)
-            tokenType = ViperTokenTypes.STRING
+            tokenType = ViperTokenTypes.CHAR
             return
         }
 
@@ -173,6 +185,24 @@ class ViperLexer : LexerBase() {
             ';' -> ViperTokenTypes.SEMICOLON
             else -> ViperTokenTypes.BAD_CHARACTER
         }
+    }
+
+    private fun scanDoubleQuotedString(quoteOffset: Int): Int {
+        var index = quoteOffset + 1
+        var escaped = false
+        while (index < endOffset) {
+            val c = buffer[index]
+            if (escaped) {
+                escaped = false
+            } else if (c == '\\') {
+                escaped = true
+            } else if (c == '"') {
+                index++
+                break
+            }
+            index++
+        }
+        return index.coerceAtMost(endOffset)
     }
 
     private fun Char.isIdentifierStart(): Boolean = this == '_' || isLetter()

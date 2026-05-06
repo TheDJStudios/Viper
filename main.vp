@@ -7,6 +7,7 @@ int localValue() {
 $ number: int = 5 * 3;
 $ ready: bool = true;
 $ missing: none = none;
+$ name: str = "";
 
 print("Viper file successfully ran");
 print(number);
@@ -23,6 +24,13 @@ if (ready and number == 15) {
     print("else if branch");
 } else {
     print("else branch");
+}
+print("Name?");
+$name = collect(">> ");
+
+if (name != "") {
+    print(#"Hello [name]");
+
 }
 
 if (ready and number == 10) {

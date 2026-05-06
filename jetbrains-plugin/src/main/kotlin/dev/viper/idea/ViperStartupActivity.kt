@@ -87,14 +87,16 @@ private class ViperRuntimeManager(
 
         val installRoot = runtimeRoot()
         val targetDir = installRoot.resolve(latestRelease.tagName)
-        val compilerTarget = targetDir.resolve(COMPILER_TARGET_NAME)
-        val interpreterTarget = targetDir.resolve(INTERPRETER_TARGET_NAME)
+        val compilerTarget = targetDir.resolve(VIPER_COMPILER_NAME)
+        val interpreterTarget = targetDir.resolve(VIPER_INTERPRETER_NAME)
+        val coreTarget = targetDir.resolve(CORE_SOURCE_PATH)
 
         val installedVersion = stateService.state.runtimeVersion
         if (
             installedVersion == latestRelease.tagName &&
             compilerTarget.exists() &&
-            interpreterTarget.exists()
+            interpreterTarget.exists() &&
+            coreTarget.exists()
         ) {
             return
         }
@@ -109,12 +111,21 @@ private class ViperRuntimeManager(
 
             val compilerSource = stagingDir.findRelative(COMPILER_SOURCE_PATH)
                 ?: error("Compiler entrypoint not found in release ${latestRelease.tagName}")
-            val interpreterSource = stagingDir.findRelative(INTERPRETER_SOURCE_PATH)
+            val interpreterSource = INTERPRETER_SOURCE_PATHS
+                .firstNotNullOfOrNull(stagingDir::findRelative)
                 ?: error("Interpreter entrypoint not found in release ${latestRelease.tagName}")
+            val coreSource = stagingDir.findRelativeDirectory(CORE_SOURCE_PATH)
 
-            Files.createDirectories(targetDir)
+            Files.createDirectories(compilerTarget.parent)
+            Files.createDirectories(interpreterTarget.parent)
             Files.copy(compilerSource, compilerTarget, StandardCopyOption.REPLACE_EXISTING)
             Files.copy(interpreterSource, interpreterTarget, StandardCopyOption.REPLACE_EXISTING)
+            if (coreSource != null) {
+                coreTarget.deleteRecursivelyIfExists()
+                copyRecursively(coreSource, coreTarget)
+            } else {
+                Files.createDirectories(coreTarget)
+            }
 
             stateService.state.runtimeVersion = latestRelease.tagName
             stateService.state.runtimeInstallDir = targetDir.absolutePathString()
@@ -163,9 +174,8 @@ private class ViperRuntimeManager(
 
     companion object {
         private const val COMPILER_SOURCE_PATH = "Viper_compiler/main.py"
-        private const val INTERPRETER_SOURCE_PATH = "Viper_interpreter/Viper/main.py"
-        private const val COMPILER_TARGET_NAME = "compiler.py"
-        private const val INTERPRETER_TARGET_NAME = "interpreter.py"
+        private val INTERPRETER_SOURCE_PATHS = listOf("interp/Viper/main.py", "Viper_interpreter/Viper/main.py")
+        private const val CORE_SOURCE_PATH = "Viper_core"
     }
 }
 
@@ -490,6 +500,35 @@ private fun Path.findRelative(relativePath: String): Path? {
     }
 }
 
+private fun Path.findRelativeDirectory(relativePath: String): Path? {
+    val pathParts = relativePath.split('/')
+    return Files.walk(this).use { stream ->
+        stream
+            .filter { Files.isDirectory(it) }
+            .filter { path ->
+                val relativeNames = this.relativize(path)
+                    .map(Path::toString)
+                relativeNames.takeLast(pathParts.size) == pathParts
+            }
+            .findFirst()
+            .orElse(null)
+    }
+}
+
+private fun copyRecursively(source: Path, target: Path) {
+    Files.walk(source).use { stream ->
+        stream.forEach { sourcePath ->
+            val targetPath = target.resolve(source.relativize(sourcePath)).normalize()
+            if (Files.isDirectory(sourcePath)) {
+                Files.createDirectories(targetPath)
+            } else {
+                Files.createDirectories(targetPath.parent)
+                Files.copy(sourcePath, targetPath, StandardCopyOption.REPLACE_EXISTING)
+            }
+        }
+    }
+}
+
 private fun Path.deleteRecursivelyIfExists() {
     if (!exists()) {
         return
@@ -506,5 +545,5 @@ private const val PLUGIN_ID = "dev.viper.idea"
 private const val PLUGIN_TAG_PREFIX = "plugin-"
 private const val RELEASES_API_URL = "https://api.github.com/repos/TheDJStudios/Viper/releases"
 private const val NOTIFICATION_GROUP_ID = "Viper Notifications"
-const val VIPER_COMPILER_NAME = "compiler.py"
-const val VIPER_INTERPRETER_NAME = "interpreter.py"
+const val VIPER_COMPILER_NAME = "Viper_compiler/main.py"
+const val VIPER_INTERPRETER_NAME = "interp/Viper/main.py"

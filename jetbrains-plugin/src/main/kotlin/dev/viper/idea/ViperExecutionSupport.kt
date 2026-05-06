@@ -89,6 +89,20 @@ object ViperExecutionSupport {
             ?.firstOrNull(::isViperFile)
     }
 
+    fun findCurrentViperFile(event: AnActionEvent): VirtualFile? {
+        val psiFile = event.getData(CommonDataKeys.PSI_FILE)
+        if (isViperFile(psiFile?.virtualFile)) {
+            return psiFile?.virtualFile
+        }
+
+        val virtualFile = event.getData(CommonDataKeys.VIRTUAL_FILE)
+        if (isViperFile(virtualFile)) {
+            return virtualFile
+        }
+
+        return null
+    }
+
     fun ensureRuntime(project: Project): ViperRuntimeEntrypoints {
         val stateService = service<ViperRuntimeStateService>()
         val python = ViperPythonSupport.detect()
@@ -101,6 +115,7 @@ object ViperExecutionSupport {
             listOf(
                 root.resolve(VIPER_COMPILER_NAME) to root.resolve(VIPER_INTERPRETER_NAME),
                 root.resolve("Viper_compiler/main.py") to root.resolve("Viper_interpreter/Viper/main.py"),
+                root.resolve("compiler.py") to root.resolve("interpreter.py"),
             ).firstOrNull { (candidateCompiler, candidateInterpreter) ->
                 candidateCompiler.exists() &&
                     candidateCompiler.isRegularFile() &&

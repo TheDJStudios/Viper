@@ -21,7 +21,8 @@ class ViperSyntaxHighlighter : SyntaxHighlighterBase() {
         ViperTokenTypes.VARIABLE -> pack(VARIABLE)
         ViperTokenTypes.FUNCTION -> pack(FUNCTION)
         ViperTokenTypes.NUMBER -> pack(NUMBER)
-        ViperTokenTypes.STRING -> pack(STRING)
+        ViperTokenTypes.STRING,
+        ViperTokenTypes.CHAR -> pack(STRING)
         ViperTokenTypes.COMMENT -> pack(COMMENT)
         ViperTokenTypes.OPERATOR,
         ViperTokenTypes.DOLLAR -> pack(OPERATOR)

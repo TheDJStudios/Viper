@@ -93,7 +93,7 @@ class ViperCompletionContributor : CompletionContributor() {
 
             result.addElement(
                 PrioritizedLookupElement.withPriority(
-                    if (builtin == "print") builder.withInsertHandler(FunctionInsertHandler) else builder,
+                    if (builtin in setOf("print", "collect")) builder.withInsertHandler(FunctionInsertHandler) else builder,
                     90.0,
                 )
             )

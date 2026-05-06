@@ -236,6 +236,38 @@ class ViperCompileFileAction : com.intellij.openapi.actionSystem.AnAction(
     }
 }
 
+class ViperRunCurrentFileAction : com.intellij.openapi.actionSystem.AnAction(
+    "Run Current Viper File",
+    "Run the current editor's Viper file with the bundled Viper interpreter",
+    ViperIcons.FILE,
+) {
+    override fun update(event: com.intellij.openapi.actionSystem.AnActionEvent) {
+        event.presentation.isEnabledAndVisible = event.project != null && ViperExecutionSupport.findCurrentViperFile(event) != null
+    }
+
+    override fun actionPerformed(event: com.intellij.openapi.actionSystem.AnActionEvent) {
+        val project = event.project ?: return
+        val file = ViperExecutionSupport.findCurrentViperFile(event) ?: return
+        ViperExecutionSupport.runConfiguration(project, createConfiguration(project, file, ViperExecutionMode.RUN))
+    }
+}
+
+class ViperCompileCurrentFileAction : com.intellij.openapi.actionSystem.AnAction(
+    "Compile Current Viper File",
+    "Compile the current editor's Viper file with the bundled Viper compiler",
+    ViperIcons.FILE,
+) {
+    override fun update(event: com.intellij.openapi.actionSystem.AnActionEvent) {
+        event.presentation.isEnabledAndVisible = event.project != null && ViperExecutionSupport.findCurrentViperFile(event) != null
+    }
+
+    override fun actionPerformed(event: com.intellij.openapi.actionSystem.AnActionEvent) {
+        val project = event.project ?: return
+        val file = ViperExecutionSupport.findCurrentViperFile(event) ?: return
+        ViperExecutionSupport.runConfiguration(project, createConfiguration(project, file, ViperExecutionMode.COMPILE))
+    }
+}
+
 private fun createConfiguration(project: Project, file: VirtualFile, mode: ViperExecutionMode): ViperRunConfiguration {
     val factory = ConfigurationTypeUtil.findConfigurationType(ViperRunConfigurationType::class.java).configurationFactories.first()
     return ViperRunConfiguration(project, factory, file.name).apply {

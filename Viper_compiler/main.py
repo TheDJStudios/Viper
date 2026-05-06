@@ -1,120 +1,20 @@
 import sys
+import ast
+import json
+import re
+from pathlib import Path
+
+PROJECT_ROOT = Path(__file__).resolve().parents[1]
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(PROJECT_ROOT))
+
 import platform
 import shutil
 import subprocess
-from pathlib import Path
 
-from lark import Lark, Token
+from lark import Token
 
-
-VIPER_GRAMMAR = r"""
-start: item*
-
-item: import_stmt
-    | func_def
-    | statement
-
-import_stmt: "import" STRING ";"
-func_def: type NAME "(" ")" block
-
-statement: print_stmt
-         | var_stmt
-         | assign_stmt
-         | return_stmt
-         | call_stmt
-         | if_stmt
-         | try_stmt
-
-print_stmt: "print" "(" expr ")" ";"
-var_stmt: "$" NAME ":" type "=" expr ";"
-assign_stmt: "$" NAME "=" expr ";"
-return_stmt: "return" expr ";"
-call_stmt: NAME "(" ")" ";"
-if_stmt: "if" "(" expr ")" block else_if_clause* else_clause?
-else_if_clause: "else" "if" "(" expr ")" block
-else_clause: "else" block
-try_stmt: "try" block
-block: "{" statement* "}"
-
-type: "int"      -> int_type
-    | "void"     -> void_type
-    | "float"    -> float_type
-    | "double"   -> double_type
-    | "str"      -> str_type
-    | "string"   -> string_type
-    | "char"     -> char_type
-    | "bool"     -> bool_type
-    | "none"     -> none_type
-    | "char[]"   -> char_arr_type
-    | "int[]"    -> int_arr_type
-    | "float[]"  -> float_arr_type
-    | "double[]" -> double_arr_type
-    | "str[]"    -> str_arr_type
-    | "string[]" -> string_arr_type
-
-?expr: expr "and" comparison -> and_op
-     | comparison
-
-?comparison: arithmetic "==" arithmetic -> eq
-           | arithmetic "!=" arithmetic -> ne
-           | arithmetic "<=" arithmetic -> le
-           | arithmetic ">=" arithmetic -> ge
-           | arithmetic "<" arithmetic  -> lt
-           | arithmetic ">" arithmetic  -> gt
-           | arithmetic
-
-?arithmetic: arithmetic "+" term -> add
-           | arithmetic "-" term -> sub
-           | term
-
-?term: term "*" unary -> mul
-     | term "/" unary -> div
-     | unary
-
-?unary: "-" unary -> neg
-      | atom
-
-?atom: STRING     -> string
-     | NUMBER     -> number
-     | "true"     -> true
-     | "false"    -> false
-     | "none"     -> none_literal
-     | "collect" "(" ")" -> collect
-     | NAME "(" ")" -> call_expr
-     | "$argc"    -> argc
-     | "$args"    -> args
-     | "$" NAME   -> variable
-     | NAME       -> variable
-     | "(" expr ")"
-
-%import common.CNAME -> NAME
-%import common.ESCAPED_STRING -> STRING
-%import common.NUMBER
-%import common.WS
-%ignore WS
-
-COMMENT: /%[^\n]*/
-%ignore COMMENT
-"""
-
-
-TYPE_NAME_MAP = {
-    "int_type": "int",
-    "void_type": "void",
-    "float_type": "float",
-    "double_type": "double",
-    "str_type": "str",
-    "string_type": "str",
-    "char_type": "char",
-    "bool_type": "bool",
-    "none_type": "none",
-    "char_arr_type": "char[]",
-    "int_arr_type": "int[]",
-    "float_arr_type": "float[]",
-    "double_arr_type": "double[]",
-    "str_arr_type": "str[]",
-    "string_arr_type": "str[]",
-}
+from Viper_core.language import collect_program, get_type_name
 
 C_TYPE_MAP = {
     "int": "long long",
@@ -152,9 +52,6 @@ class Scope:
         self.variables = {}
 
 
-parser = Lark(VIPER_GRAMMAR, parser="lalr")
-
-
 HOST_OS_MAP = {
     "Darwin": "macos",
     "Linux": "linux",
@@ -167,13 +64,6 @@ HOST_ARCH_MAP = {
     "arm64": "aarch64",
     "aarch64": "aarch64",
 }
-
-
-def parse_source(source_code, filename):
-    try:
-        return parser.parse(source_code)
-    except Exception as error:
-        raise ViperCompileError(f"{filename}: VP: Parse error\n    {error}") from error
 
 
 def detect_host_os():
@@ -310,97 +200,9 @@ def build_binary(c_path, target_os="native", binary_path=None):
     return binary_path, candidate["name"]
 
 
-def extract_string(token):
-    text = str(token)
-    return text[1:-1]
-
-
-def resolve_import_path(raw_path, importer_path):
-    if raw_path.startswith("/"):
-        return Path(raw_path).resolve()
-
-    return (importer_path.parent / raw_path).resolve()
-
-
-def get_type_name(type_node):
-    type_name = TYPE_NAME_MAP.get(type_node.data)
-    if type_name is None:
-        raise ViperCompileError(f"VP: Error, Unknown type '{type_node.data}'")
-    return type_name
-
-
 def require_supported_type(type_name, context):
     if type_name not in SUPPORTED_RUNTIME_TYPES:
         raise ViperCompileError(f"VP: Error, {context} uses unsupported compile target type '{type_name}'")
-
-
-def collect_program(root_path):
-    root_path = root_path.resolve()
-    root_source = root_path.read_text(encoding="utf-8")
-    root_tree = parse_source(root_source, str(root_path))
-
-    functions = {}
-    loaded_files = set()
-    active_files = set()
-
-    def visit(tree, current_path):
-        current_path = current_path.resolve()
-
-        if current_path in active_files:
-            raise ViperCompileError(f"VP: Error, Circular import detected for '{current_path}'")
-
-        if current_path in loaded_files:
-            return
-
-        active_files.add(current_path)
-
-        for item in tree.children:
-            child = item.children[0]
-
-            if child.data == "import_stmt":
-                import_target = extract_string(child.children[0])
-                import_path = resolve_import_path(import_target, current_path)
-
-                if not import_path.exists():
-                    raise ViperCompileError(f"VP: Error, Imported file not found: {import_target}")
-
-                import_tree = parse_source(import_path.read_text(encoding="utf-8"), str(import_path))
-                visit(import_tree, import_path)
-
-            elif child.data == "func_def":
-                ret_type = get_type_name(child.children[0])
-                require_supported_type(ret_type, "Function")
-
-                name = str(child.children[1])
-                if name in functions:
-                    raise ViperCompileError(
-                        f"VP: Error, Function '{name}' already defined in '{functions[name]['source']}'"
-                    )
-
-                functions[name] = {
-                    "name": name,
-                    "ret_type": ret_type,
-                    "body": child.children[2],
-                    "source": str(current_path),
-                }
-
-        active_files.remove(current_path)
-        loaded_files.add(current_path)
-
-    visit(root_tree, root_path)
-
-    top_level_statements = []
-    for item in root_tree.children:
-        child = item.children[0]
-        if child.data == "statement":
-            top_level_statements.append(child.children[0])
-
-    return {
-        "root_path": root_path,
-        "tree": root_tree,
-        "functions": functions,
-        "top_level_statements": top_level_statements,
-    }
 
 
 class CCompiler:
@@ -409,6 +211,9 @@ class CCompiler:
         self.functions = program["functions"]
 
     def compile(self):
+        for function in self.functions.values():
+            require_supported_type(function["ret_type"], "Function")
+
         lines = [
             "#include <stdbool.h>",
             "#include <stdio.h>",
@@ -434,12 +239,71 @@ class CCompiler:
             "    return copy;",
             "}",
             "",
+            "static char *vp_collect_prompt(const char *prompt) {",
+            "    if (prompt != NULL) {",
+            "        fputs(prompt, stdout);",
+            "        fflush(stdout);",
+            "    }",
+            "    return vp_collect();",
+            "}",
+            "",
             "static void vp_print_int(long long value) { printf(\"%lld\\n\", value); }",
             "static void vp_print_double(double value) { printf(\"%g\\n\", value); }",
             "static void vp_print_bool(bool value) { puts(value ? \"true\" : \"false\"); }",
             "static void vp_print_str(const char *value) { puts(value == NULL ? \"\" : value); }",
             "static void vp_print_char(char value) { printf(\"%c\\n\", value); }",
             "static void vp_print_none(void *value) { (void)value; puts(\"none\"); }",
+            "",
+            "static char *vp_int_to_str(long long value) {",
+            "    int length = snprintf(NULL, 0, \"%lld\", value);",
+            "    char *text = (char *)malloc((size_t)length + 1);",
+            "    if (text == NULL) {",
+            "        fputs(\"VP: Error, Failed to convert int to string\\n\", stderr);",
+            "        exit(1);",
+            "    }",
+            "    snprintf(text, (size_t)length + 1, \"%lld\", value);",
+            "    return text;",
+            "}",
+            "",
+            "static char *vp_double_to_str(double value) {",
+            "    int length = snprintf(NULL, 0, \"%g\", value);",
+            "    char *text = (char *)malloc((size_t)length + 1);",
+            "    if (text == NULL) {",
+            "        fputs(\"VP: Error, Failed to convert number to string\\n\", stderr);",
+            "        exit(1);",
+            "    }",
+            "    snprintf(text, (size_t)length + 1, \"%g\", value);",
+            "    return text;",
+            "}",
+            "",
+            "static const char *vp_bool_to_str(bool value) { return value ? \"true\" : \"false\"; }",
+            "static const char *vp_none_to_str(void *value) { (void)value; return \"none\"; }",
+            "",
+            "static char *vp_char_to_str(char value) {",
+            "    char *text = (char *)malloc(2);",
+            "    if (text == NULL) {",
+            "        fputs(\"VP: Error, Failed to convert char to string\\n\", stderr);",
+            "        exit(1);",
+            "    }",
+            "    text[0] = value;",
+            "    text[1] = '\\0';",
+            "    return text;",
+            "}",
+            "",
+            "static char *vp_concat_str(const char *left, const char *right) {",
+            "    if (left == NULL) { left = \"\"; }",
+            "    if (right == NULL) { right = \"\"; }",
+            "    size_t left_length = strlen(left);",
+            "    size_t right_length = strlen(right);",
+            "    char *combined = (char *)malloc(left_length + right_length + 1);",
+            "    if (combined == NULL) {",
+            "        fputs(\"VP: Error, Failed to concatenate strings\\n\", stderr);",
+            "        exit(1);",
+            "    }",
+            "    memcpy(combined, left, left_length);",
+            "    memcpy(combined + left_length, right, right_length + 1);",
+            "    return combined;",
+            "}",
             "",
         ]
 
@@ -520,7 +384,7 @@ class CCompiler:
 
         if node.data == "var_stmt":
             name = str(node.children[0])
-            declared_type = get_type_name(node.children[1])
+            declared_type = get_type_name(node.children[1], ViperCompileError)
             require_supported_type(declared_type, "Variable")
 
             expr_code, expr_type = self.emit_expr(node.children[2], scope)
@@ -541,6 +405,12 @@ class CCompiler:
         if node.data == "return_stmt":
             expr_code, _ = self.emit_expr(node.children[0], scope)
             return [f"{indent}return {expr_code};"]
+
+        if node.data == "collect_stmt":
+            if node.children:
+                prompt_code, prompt_type = self.emit_expr(node.children[0], scope)
+                return [f"{indent}(void)vp_collect_prompt({self.to_string_expr(prompt_code, prompt_type)});"]
+            return [f"{indent}(void)vp_collect();"]
 
         if node.data == "call_stmt":
             name = str(node.children[0])
@@ -602,7 +472,13 @@ class CCompiler:
         data = node.data
 
         if data == "string":
-            return str(node.children[0]), "str"
+            return self.c_string_literal(ast.literal_eval(str(node.children[0]))), "str"
+
+        if data == "fstring":
+            return self.emit_interpolated_string(str(node.children[0]), scope)
+
+        if data == "char":
+            return str(node.children[0]), "char"
 
         if data == "number":
             text = str(node.children[0])
@@ -624,6 +500,9 @@ class CCompiler:
             return "vp_argv", "str[]"
 
         if data == "collect":
+            if node.children:
+                prompt_code, prompt_type = self.emit_expr(node.children[0], scope)
+                return f"vp_collect_prompt({self.to_string_expr(prompt_code, prompt_type)})", "str"
             return "vp_collect()", "str"
 
         if data == "variable":
@@ -641,13 +520,23 @@ class CCompiler:
                 raise ViperCompileError(f"VP: Error, Function '{name}' returns void and cannot be used in an expression")
             return f"{self.c_function_name(name)}()", ret_type
 
-        if data in {"add", "sub", "mul"}:
+        if data == "add":
+            left_code, left_type = self.emit_expr(node.children[0], scope)
+            right_code, right_type = self.emit_expr(node.children[1], scope)
+            if self.is_stringish(left_type) or self.is_stringish(right_type):
+                return f"vp_concat_str({self.to_string_expr(left_code, left_type)}, {self.to_string_expr(right_code, right_type)})", "str"
+            self.ensure_numeric(left_type, data)
+            self.ensure_numeric(right_type, data)
+            result_type = self.numeric_result_type(left_type, right_type)
+            return f"({left_code} + {right_code})", result_type
+
+        if data in {"sub", "mul"}:
             left_code, left_type = self.emit_expr(node.children[0], scope)
             right_code, right_type = self.emit_expr(node.children[1], scope)
             self.ensure_numeric(left_type, data)
             self.ensure_numeric(right_type, data)
             result_type = self.numeric_result_type(left_type, right_type)
-            symbol = { "add": "+", "sub": "-", "mul": "*" }[data]
+            symbol = { "sub": "-", "mul": "*" }[data]
             return f"({left_code} {symbol} {right_code})", result_type
 
         if data == "div":
@@ -673,6 +562,11 @@ class CCompiler:
             left_code, left_type = self.emit_expr(node.children[0], scope)
             right_code, right_type = self.emit_expr(node.children[1], scope)
             self.ensure_comparable(data, left_type, right_type)
+            if self.is_stringish(left_type) and self.is_stringish(right_type) and data in {"eq", "ne"}:
+                compare_code = f"(strcmp({self.to_string_expr(left_code, left_type)}, {self.to_string_expr(right_code, right_type)}) == 0)"
+                if data == "ne":
+                    compare_code = f"!{compare_code}"
+                return compare_code, "bool"
             return f"({left_code} {COMPARISON_SYMBOLS[data]} {right_code})", "bool"
 
         raise ViperCompileError(f"VP: Error, Unknown expression '{data}'")
@@ -683,7 +577,7 @@ class CCompiler:
         elif declared_type in {"float", "double"}:
             ok = expr_type in {"int", "float", "double"}
         elif declared_type == "str":
-            ok = expr_type == "str"
+            ok = expr_type in {"str", "char"}
         elif declared_type == "char":
             ok = expr_type == "char"
         elif declared_type == "bool":
@@ -710,6 +604,9 @@ class CCompiler:
         if operator_name in {"lt", "le", "gt", "ge"}:
             self.ensure_numeric(left_type, operator_name)
             self.ensure_numeric(right_type, operator_name)
+            return
+
+        if self.is_stringish(left_type) and self.is_stringish(right_type):
             return
 
         if left_type in {"int", "float", "double"} and right_type in {"int", "float", "double"}:
@@ -739,9 +636,67 @@ class CCompiler:
         return name
 
     def cast_expr(self, expr_code, expr_type, declared_type):
+        if declared_type == "str" and expr_type == "char":
+            return self.to_string_expr(expr_code, expr_type)
         if declared_type in {"float", "double"} and expr_type == "int":
             return f"((double)({expr_code}))"
         return expr_code
+
+    def is_stringish(self, type_name):
+        return type_name in {"str", "char"}
+
+    def to_string_expr(self, expr_code, expr_type):
+        if expr_type == "str":
+            return expr_code
+        if expr_type == "char":
+            return f"vp_char_to_str({expr_code})"
+        if expr_type == "int":
+            return f"vp_int_to_str({expr_code})"
+        if expr_type in {"float", "double"}:
+            return f"vp_double_to_str({expr_code})"
+        if expr_type == "bool":
+            return f"vp_bool_to_str({expr_code})"
+        if expr_type == "none":
+            return f"vp_none_to_str({expr_code})"
+        raise ViperCompileError(f"VP: Error, Cannot use type '{expr_type}' as a string")
+
+    def emit_interpolated_string(self, token_text, scope):
+        template = ast.literal_eval(token_text[1:])
+        parts = []
+        cursor = 0
+
+        for match in re.finditer(r"\[([A-Za-z_][A-Za-z0-9_]*|\$[A-Za-z_][A-Za-z0-9_]*)\]", template):
+            if match.start() > cursor:
+                parts.append((self.c_string_literal(template[cursor:match.start()]), "str"))
+            parts.append(self.emit_interpolated_value(match.group(1), scope))
+            cursor = match.end()
+
+        if cursor < len(template):
+            parts.append((self.c_string_literal(template[cursor:]), "str"))
+
+        if not parts:
+            return self.c_string_literal(template), "str"
+
+        expr_code, expr_type = parts[0]
+        expr_code = self.to_string_expr(expr_code, expr_type)
+        for part_code, part_type in parts[1:]:
+            expr_code = f"vp_concat_str({expr_code}, {self.to_string_expr(part_code, part_type)})"
+
+        return expr_code, "str"
+
+    def emit_interpolated_value(self, name, scope):
+        if name == "$argc":
+            return "vp_argc", "int"
+        if name == "$args":
+            return "vp_argv", "str[]"
+
+        variable_name = name[1:] if name.startswith("$") else name
+        if variable_name not in scope.variables:
+            raise ViperCompileError(f"VP: Error, Unknown variable '{variable_name}'")
+        return variable_name, scope.variables[variable_name]
+
+    def c_string_literal(self, text):
+        return json.dumps(text)
 
     def print_function(self, type_name):
         mapping = {
@@ -815,7 +770,7 @@ def compile_file(input_path, output_path=None):
     if input_path.suffix != ".vp":
         raise ViperCompileError(f"VP: Error, Expected a .vp file, received: {input_path.suffix}")
 
-    program = collect_program(input_path)
+    program = collect_program(input_path, error_cls=ViperCompileError)
     compiler = CCompiler(program)
     c_source = compiler.compile()
 
