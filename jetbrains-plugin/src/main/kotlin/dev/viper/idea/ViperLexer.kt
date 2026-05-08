@@ -63,8 +63,8 @@ class ViperLexer : LexerBase() {
             return
         }
 
-        if (current == '%') {
-            index++
+        if (current == '/' && tokenStart + 1 < endOffset && buffer[tokenStart + 1] == '/') {
+            index += 2
             while (index < endOffset && buffer[index] != '\n' && buffer[index] != '\r') {
                 index++
             }

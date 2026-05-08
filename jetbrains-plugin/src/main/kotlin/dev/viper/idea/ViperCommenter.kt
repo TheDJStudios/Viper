@@ -3,7 +3,7 @@ package dev.viper.idea
 import com.intellij.lang.Commenter
 
 class ViperCommenter : Commenter {
-    override fun getLineCommentPrefix(): String = "%"
+    override fun getLineCommentPrefix(): String = "//"
 
     override fun getBlockCommentPrefix(): String? = null
 

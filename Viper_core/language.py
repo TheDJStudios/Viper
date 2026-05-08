@@ -97,7 +97,7 @@ type: "int"      -> int_type
 FSTRING: /#"(?:\\.|[^"\\])*"/
 SSTRING: /'(?:\\.|[^'\\]){2,}'|''/
 CHAR: /'(?:\\.|[^'\\])'/
-COMMENT: /%[^\n]*/
+COMMENT: /\/\/[^\n]*/
 %ignore COMMENT
 """
 

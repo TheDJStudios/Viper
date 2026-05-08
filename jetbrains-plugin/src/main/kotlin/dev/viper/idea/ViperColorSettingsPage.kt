@@ -30,7 +30,7 @@ class ViperColorSettingsPage : ColorSettingsPage {
         if (ready and number == 15) {
             print("if branch");
         } else {
-            % line comment
+            // line comment
             print("else branch");
         }
     """.trimIndent()
