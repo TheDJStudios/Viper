@@ -2,15 +2,13 @@
 #include <vector>
 #include <iostream>
 
-int main(int argc, char* argv[]) {
-    std::string mode = argv[1];
-    if (argc < 2) {
-        std::cout << "Usage: 'viper compile/interp'\n";
-        return 1;
-    }
-    if (mode == "compile") {
-        std::cout << "Compile is currently a stub\n";
-    } else if (mode == "interp") {
-        std::cout << "Interp is currently a stub\n";
-    }
+int main() {
+    std::cout << "Welcome to Viper executable. select a function to get started:\n";
+    std::string command;
+    std::cout << "[1] Compile\n";
+    std::cout << "[2] Interpret\n";
+    std::cout << "\n";
+    std::cout << "Viper> ";
+    std::getline(std::cin, command);
+    std::cout << command << " Either doesnt exist or is a stub" << std::endl;
 }
