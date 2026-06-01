@@ -7,7 +7,8 @@ include_directories(Viper_compiler)
 include_directories(Viper_interpreter)
 
 add_executable(Viper
-        Viper_compiler/main.cpp
         "Viper_interpreter/Python viper/main.py"
         "Viper_interpreter/Viper/main old.py"
-        Viper_interpreter/Viper/main.py)
+        Viper_interpreter/Viper/main.py
+        main.cpp
+)
