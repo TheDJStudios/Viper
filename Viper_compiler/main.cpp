@@ -1,3 +1,6 @@
-//
-// Created by Alastor on 6/1/26.
-//
+#include <iostream>
+
+int main() {
+    std::cout << "Viper compiler";
+    return 0;
+}
